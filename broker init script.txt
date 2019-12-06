@@ -2,6 +2,22 @@ sudo yum install java
 wget http://apache.mirror.cdnetworks.com/kafka/2.3.1/kafka_2.11-2.3.1.tgz
 tar -xzf kafka_2.11-2.3.1.tgz
 cd kafka_2.11-2.3.1/bin
+perl -p -i -e '$.==2 and print "advertised.listener=PLAINTEXT://자신의 아이피:9092 \n"' /home/ec2-user/kafka_2.11-2.3.1/config/server.properties
 sh zookeeper-server-start.sh -daemon ../config/zookeeper.properties
 sh kafka-server-start.sh -daemon ../config/server.properties
 sh kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic test
+
+
+
+
+
+
+
+
+
+
+perl -p -i -e '$.==2 and print "\n"' asdf
+
+ perl -p -i -e '$.==20 and print "kafkaServerIP=\"\""' views.py
+
+ perl -p -i -e '$.==20 and print "kafkaServerIP=\"\""' /home/ec2-user/mysite/simpletrigger/views.py
