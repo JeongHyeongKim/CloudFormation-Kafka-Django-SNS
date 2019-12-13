@@ -242,16 +242,11 @@
                     }
                   }
               },
+              
               "Topic" : {
                 "Type" : "AWS::SNS::Topic",
                 "Properties" : {
                     "TopicName" : "S3ToSNS"
-                  }
-              },
-              "topicPolicy" : {
-                "Properties" : {
-                    "PolicyDocument" : Json,
-                    "Topics" : [ String, ... ]
                   }
               },
               "S3Bucket" : {
@@ -260,25 +255,32 @@
                     "BucketName" : "test",
                     "NotificationConfiguration" : [TopicConfigurations]
                   }
-              }
-
-
-              
-
-
-
-
-
-
-
-
-
-
-
-
-  }
-
-
-
-
-}
+              },
+              "topicPolicy" : {
+                "Type" : "AWS::SNS::TopicPolicy",,
+                "Properties" : {
+                    "PolicyDocument" : {
+                        "Version": "2008-10-17",
+                        "Id": "example-ID",
+                        "Statement": [
+                          {
+                            "Sid": "example-statement-ID",
+                            "Effect": "Allow",
+                            "Principal": {
+                              "Service": "s3.amazonaws.com"
+                            },
+                            "Action": "sns:Publish",
+                            "Resource": {"Rn:GetAtt" : ["Topic", "Arn"]},
+                            "Condition": {
+                              "ArnLike": {
+                                "aws:SourceArn": {"Fn::GetAtt" : ["S3Bucket", "Arn"]}
+                              }
+                            }
+                          }
+                        ]
+                      },
+                "Topics" : [ {"Ref" : "Topic"} ]
+                }
+            }
+        }
+    }
