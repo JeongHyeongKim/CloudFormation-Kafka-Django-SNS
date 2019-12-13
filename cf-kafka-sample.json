@@ -7,18 +7,18 @@
             "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
             },
 
-        "VPC-CIDR" : {
+        "VPCCIDR" : {
             "Description" : "Insert your VPC CIDR for Kafka-sample. Default is 200.0.0.0/16",
-            "Type": "string",
+            "Type": "String",
             "MinLength": "9",
             "MaxLength": "18",
             "Default": "200.0.0.0/16",
             "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
             "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
         },
-        "ProducerSubnet-CIDR" : {
+        "ProducerSubnetCIDR" : {
             "Description" : "Insert your Public Producer Subnet CIDR for Kafka-Sample. Defalut is 200.0.0.0/24",
-            "Type" : "string",
+            "Type" : "String",
             "MinLength": "9",
             "MaxLength": "18",
             "Default": "200.0.0.0/24",
@@ -27,9 +27,9 @@
 
         },
 
-        "BrokerSubnet-CIDR" : {
+        "BrokerSubnetCIDR" : {
             "Description" : "Insert your Public Broker Subnet CIDR for Kafka-Sample. Defalut is 200.0.10.0/24",
-            "Type" : "string",
+            "Type" : "String",
             "MinLength": "9",
             "MaxLength": "18",
             "Default": "200.0.10.0/24",
@@ -39,11 +39,11 @@
         },
         
         "NamePrefix" : {
-            "Description" : "Insert your Amazon Resource Name prefix. Default is Kafka-sample.",
-            "Type": "string",
+            "Description" : "Insert your Amazon Resource Name prefix. Default is kafka-sample.",
+            "Type": "String",
             "MinLength": "1",
-            "MaxLength": "10",
-            "Default": "Kafka-sample",
+            "MaxLength": "20",
+            "Default": "kafka-sample",
             "ConstraintDescription": "Exceed MaxLength 10"
         }
   },
@@ -53,7 +53,7 @@
             "vpc" : {
                 "Type" : "AWS::EC2::VPC",
                 "Properties" : {
-                    "CidrBlock" : {"Ref" :"VPC-CIDR"},
+                    "CidrBlock" : {"Ref" :"VPCCIDR"},
                     "EnableDnsHostnames" : "true",
                     "EnableDnsSupport" : "true",
                     "Tags" : [ {"Key" : "Name", "Value" : {"Fn::Join" : ["-",[{"Ref":"NamePrefix"},"VPC"] ]}  } ]
@@ -64,7 +64,7 @@
                 "Type" : "AWS::EC2::Subnet",
                 "Properties" : {
                     "VpcId" : { "Ref" : "vpc" },
-                    "CidrBlock" : {"Ref" :"ProducerSubnet-CIDR"},
+                    "CidrBlock" : {"Ref" :"ProducerSubnetCIDR"},
                     "AvailabilityZone" : "ap-northeast-2a",
                     "Tags" : [ {"Key" : "Name", "Value" : {"Fn::Join" : ["-",[{"Ref":"NamePrefix"},"public-2a-1"] ]}}]
                 }
@@ -74,7 +74,7 @@
                 "Type" : "AWS::EC2::Subnet",
                 "Properties" : {
                     "VpcId" : { "Ref" : "vpc" },
-                    "CidrBlock" : {"Ref" :"BrokerSubnet-CIDR"},
+                    "CidrBlock" : {"Ref" :"BrokerSubnetCIDR"},
                     "AvailabilityZone" : "ap-northeast-2a",
                     "Tags" : [ {"Key" : "Name", "Value" : {"Fn::Join" : ["-",[{"Ref":"NamePrefix"},"public-2a-1"] ]}}]
                 }
@@ -94,8 +94,16 @@
                     "VpcId" : {"Ref" : "vpc"}
                 }
             },
-
-            "nacl":{
+            "publicRoute" : {
+                "Type" : "AWS::EC2::Route",
+                "DependsOn" : "igwAttach",
+                "Properties" : {
+                  "RouteTableId" : { "Ref" : "RouteTable" },
+                  "DestinationCidrBlock" : "0.0.0.0/0",
+                  "GatewayId" : { "Ref" : "igw" }
+                }
+            },
+            "naclkafka":{
                 "Type" : "AWS::EC2::NetworkAcl",
                 "Properties" : {
                     "Tags" : [ {"Key" : "Name", "Value" : {"Fn::Join" : ["-",[{"Ref":"NamePrefix"},"nacl"] ]}}],
@@ -106,19 +114,18 @@
             "naclentry":{
                 "Type" : "AWS::EC2::NetworkAclEntry",
                 "Properties" : {
-                    "NetworkAclId" : {"Ref" : "nacl"},
+                    "NetworkAclId" : {"Ref" : "naclkafka"},
                     "RuleNumber" : "100",
                     "Protocol" : "-1",
                     "RuleAction" : "allow",
-                    "Egress" : "true",
+                    "Egress" : "false",
                     "CidrBlock" : "0.0.0.0/0"
                 }
             },
-
             "BrokerNaclAssoc" : {
                 "Type" : "AWS::EC2::SubnetNetworkAclAssociation",
                 "Properties" : {
-                    "NetworkAclId" : {"Ref" : "naclentry"},
+                    "NetworkAclId" : {"Ref" : "naclkafka"},
                     "SubnetId" : {"Ref" : "brokerSubnet"}
                     }
             },
@@ -126,7 +133,7 @@
             "ProducerNaclAssoc" : {
                 "Type" : "AWS::EC2::SubnetNetworkAclAssociation",
                 "Properties" : {
-                    "NetworkAclId" : {"Ref" : "naclentry"},
+                    "NetworkAclId" : {"Ref" : "naclkafka"},
                     "SubnetId" : {"Ref" : "producerSubnet"}
                     }
             },
@@ -143,7 +150,14 @@
                 "Type" : "AWS::EC2::SubnetRouteTableAssociation",
                 "Properties" : {
                     "RouteTableId" : {"Ref" : "RouteTable"},
-                    "SubnetId" : {"Ref" : "publicsubnet"}
+                    "SubnetId" : {"Ref" : "brokerSubnet"}
+                    }
+            },
+            "RouteTableAssoc1" : {
+                "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+                "Properties" : {
+                    "RouteTableId" : {"Ref" : "RouteTable"},
+                    "SubnetId" : {"Ref" : "producerSubnet"}
                     }
             },
 
@@ -157,7 +171,7 @@
                     {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0"},
                     {"IpProtocol" : "tcp", "FromPort" : "9092", "ToPort" : "9092", "CidrIp" : "0.0.0.0/0"}
                   ],
-                  "Tags" : [{"Key" : "Name", "Value": {"Fn::Join":["-",[{"Ref":"resourceNaming"},"bastion-sg"]]} } ]
+                  "Tags" : [{"Key" : "Name", "Value": {"Fn::Join":["-",[{"Ref":"NamePrefix"},"bastion-sg"]]} } ]
                 }
               },
 
@@ -172,27 +186,10 @@
                     {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"},
                     {"IpProtocol" : "tcp", "FromPort" : "9092", "ToPort" : "9092", "CidrIp" : "0.0.0.0/0"}
                   ],
-                  "Tags" : [{"Key" : "Name", "Value": {"Fn::Join":["-",[{"Ref":"resourceNaming"},"bastion-sg"]]} } ]
+                  "Tags" : [{"Key" : "Name", "Value": {"Fn::Join":["-",[{"Ref":"NamePrefix"},"bastion-sg"]]} } ]
                 }
               },
 
-              "SNSTopic" : {
-                "Type" : "AWS::SNS::Topic",
-                "Properties" : {
-                    "TopicName" : {"Ref" : "NamePrefix"}
-                  }
-              },
-
-              "S3forSNS" : {
-                "Type" : "AWS::S3::Bucket",
-                "Properties" : {
-                    "BucketName" : {"Fn::Join" :["-",[{"Ref":"NamePrefix"},"bucket"]] },
-                    "NotificationConfiguration" : { "TopicConfigurations" : [ {
-                        "Event" : "s3:ObjectCreated:Put",
-                        "Topic" : {"Ref" : "SNSTopic"}
-                      } ]}
-                  }
-              },
               "BrokerInstance" : {
                 "Type" : "AWS::EC2::Instance",
                 "Properties" : {
@@ -212,11 +209,7 @@
                         "\n","wget http://apache.mirror.cdnetworks.com/kafka/2.3.1/kafka_2.11-2.3.1.tgz",
                         "\n","tar -xzf kafka_2.11-2.3.1.tgz",
                         "\n", "cd kafka_2.11-2.3.1/bin",
-                        "\n", "perl -p -i -e '$.==2 and print \"advertised.listener=PLAINTEXT://",
-                        {"Fn::GetAtt":["BrokerInstance","PublicIP"]},":9092 \n\"' /home/ec2-user/kafka_2.11-2.3.1/config/server.properties",
-                        "\n", "sh zookeeper-server-start.sh -daemon ../config/zookeeper.properties",
-                        "\n", "sh kafka-server-start.sh -daemon ../config/server.properties",
-                        "\n", "sh kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic test"
+                        "\n", "perl -p -i -e '$.==2 and print \"advertised.listener=PLAINTEXT://"
                         ]]}
                     }
                   }
@@ -224,7 +217,7 @@
               "ProducerInstance" : {
                 "Type" : "AWS::EC2::Instance",
                 "Properties" : {
-                    "ImageId" : "",
+                    "ImageId" : "ami-0d7a440e457436ce8",
                     "InstanceType" : "t2.micro",
                     "KeyName" : {"Ref" : "Key"},
                     "Tags" : [{"Key" : "Name", "Value" : {"Fn::Join" : ["-",[{"Ref":"NamePrefix"},"producer"]]}}],
@@ -237,13 +230,12 @@
                     "UserData" : {"Fn::Base64" : { "Fn::Join" : ["",[
                         "#!/bin/bash","\n",
                         "\n","perl -p -i -e '$.==20 and print \"kafkaServerIP=",
-                        {"Fn::GetAtt" : ["BrokerInstance", "PublicIP"]}, "\"\"' /home/ec2-user/mysite/simpletrigger/views.py"
+                        {"Fn::GetAtt" : ["BrokerInstance", "PublicIp"]}, "\"\"' /home/ec2-user/mysite/simpletrigger/views.py"
                         ]]}
                     }
                   }
               },
-              
-              "Topic" : {
+              "S3Topic" : {
                 "Type" : "AWS::SNS::Topic",
                 "Properties" : {
                     "TopicName" : "S3ToSNS"
@@ -252,13 +244,8 @@
               "S3Bucket" : {
                 "Type" : "AWS::S3::Bucket",
                 "Properties" : {
-                    "BucketName" : "test",
-                    "NotificationConfiguration" : {
-                        "TopicConfigurations" : {
-                            "Event" : "S3ToSNS",
-                            "Topic" : {"Fn::GetAtt" : ["Topic", "Arn"]}
-                        }
-                    }
+                    "BucketName" : {"Fn::Join" :["-",[{"Ref" : "NamePrefix"},"bucket"]] },
+                    
                   }
               },
               "topicPolicy" : {
@@ -268,23 +255,23 @@
                         "Version": "2008-10-17",
                         "Id": "example-ID",
                         "Statement": [
-                          {
-                            "Sid": "example-statement-ID",
+                          { 
+                            "Sid": "kafka-sample",
                             "Effect": "Allow",
                             "Principal": {
                               "Service": "s3.amazonaws.com"
                             },
                             "Action": "sns:Publish",
-                            "Resource": {"Rn:GetAtt" : ["Topic", "Arn"]},
+                            "Resource": {"Ref" : "S3Topic"},
                             "Condition": {
                               "ArnLike": {
-                                "aws:SourceArn": {"Fn::GetAtt" : ["S3Bucket", "Arn"]}
+                                "aws:SourceArn": {"Fn::Join": [ "", [ "arn:aws:s3:::", { "Ref": "S3Bucket" }]]}
                               }
                             }
                           }
                         ]
                       },
-                "Topics" : [ {"Ref" : "Topic"} ]
+                "Topics" : [ {"Ref" : "S3Topic"} ]
                 }
             }
         }
