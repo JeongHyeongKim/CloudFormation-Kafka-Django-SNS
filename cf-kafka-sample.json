@@ -253,11 +253,16 @@
                 "Type" : "AWS::S3::Bucket",
                 "Properties" : {
                     "BucketName" : "test",
-                    "NotificationConfiguration" : [TopicConfigurations]
+                    "NotificationConfiguration" : {
+                        "TopicConfigurations" : {
+                            "Event" : "S3ToSNS",
+                            "Topic" : {"Fn::GetAtt" : ["Topic", "Arn"]}
+                        }
+                    }
                   }
               },
               "topicPolicy" : {
-                "Type" : "AWS::SNS::TopicPolicy",,
+                "Type" : "AWS::SNS::TopicPolicy",
                 "Properties" : {
                     "PolicyDocument" : {
                         "Version": "2008-10-17",
