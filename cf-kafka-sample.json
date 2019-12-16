@@ -241,13 +241,6 @@
                     "TopicName" : "S3ToSNS"
                   }
               },
-              "S3Bucket" : {
-                "Type" : "AWS::S3::Bucket",
-                "Properties" : {
-                    "BucketName" : {"Fn::Join" :["-",[{"Ref" : "NamePrefix"},"bucket"]] },
-                    
-                  }
-              },
               "topicPolicy" : {
                 "Type" : "AWS::SNS::TopicPolicy",
                 "Properties" : {
@@ -265,13 +258,31 @@
                             "Resource": {"Ref" : "S3Topic"},
                             "Condition": {
                               "ArnLike": {
-                                "aws:SourceArn": {"Fn::Join": [ "", [ "arn:aws:s3:::", { "Ref": "S3Bucket" }]]}
+                                "aws:SourceArn": {"Fn::Join": [ "", [ "arn:aws:s3:::", {"Fn::Join" :["-",[{"Ref" : "NamePrefix"},"bucket"]] }]]}
                               }
                             }
                           }
                         ]
                       },
                 "Topics" : [ {"Ref" : "S3Topic"} ]
+                }
+            },
+            "S3Bucket" : {
+              "Type" : "AWS::S3::Bucket",
+              "DependsOn": ["topicPolicy"],
+              "Properties" : {
+
+                  "BucketName" : {"Fn::Join" :["-",[{"Ref" : "NamePrefix"},"bucket"]] },
+                  "NotificationConfiguration" : {
+                    "TopicConfigurations" : [
+                      {
+                        "Event": "s3:ObjectCreated:Put",
+                        "Topic": {
+                          "Ref": "S3Topic"
+                        }
+                      }
+                    ]
+                  }
                 }
             }
         }
